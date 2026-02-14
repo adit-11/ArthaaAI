@@ -8,7 +8,7 @@ from database import insert_transaction
 st.title("💳 AI Secure UPI QR Generator")
 
 # ----------------------------
-# 🔐 Protect Page
+# 🔐 Authentication Check
 # ----------------------------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -23,24 +23,24 @@ if not st.session_state.authenticated or st.session_state.username is None:
 username = st.session_state.username.lower()
 
 # ----------------------------
-# Initialize session state
+# Initialize Session State
 # ----------------------------
 if "transactions" not in st.session_state:
     st.session_state.transactions = []
 
-if "model_trained" not in st.session_state:
-    st.session_state.model_trained = False
-
 if "model" not in st.session_state:
     st.session_state.model = LogisticRegression()
 
+if "model_trained" not in st.session_state:
+    st.session_state.model_trained = False
+
 # ----------------------------
-# Inputs
+# User Inputs
 # ----------------------------
 amount = st.number_input("Enter Amount (₹)", min_value=1.0, step=1.0)
 upi_id = st.text_input("Enter Receiver UPI ID", value="yourupi@okaxis")
 name = st.text_input("Receiver Name", value="Aditya")
-note = st.text_input("Transaction Note (Optional)", value="AI Secure Payment")
+note = st.text_input("Transaction Note", value="AI Secure Payment")
 
 payment_type = st.radio(
     "Select Payment Type",
@@ -48,43 +48,56 @@ payment_type = st.radio(
 )
 
 # ----------------------------
-# Generate Button
+# Generate QR Button
 # ----------------------------
 if st.button("Generate Secure QR"):
 
-    # Save locally for ML training
-    transaction = {"amount": amount}
-    st.session_state.transactions.append(transaction)
+    # Save locally for ML learning
+    st.session_state.transactions.append({"amount": amount})
 
-    # Train after 5 transactions
-    if len(st.session_state.transactions) >= 5:
+    # ----------------------------
+    # Train model ONLY ONCE after 5 transactions
+    # ----------------------------
+    if (
+        len(st.session_state.transactions) == 5
+        and not st.session_state.model_trained
+    ):
+
         X = np.array([[t["amount"]] for t in st.session_state.transactions])
-        y = np.array([1 if t["amount"] > 5000 else 0 for t in st.session_state.transactions])
+        y = np.array(
+            [1 if t["amount"] > 5000 else 0
+             for t in st.session_state.transactions]
+        )
 
         if len(np.unique(y)) > 1:
             st.session_state.model.fit(X, y)
             st.session_state.model_trained = True
-
-    # Predict Risk
-    if st.session_state.model_trained:
-        risk = st.session_state.model.predict([[amount]])[0]
-    else:
-        risk = 0
+            st.success("AI Risk Model Trained ✅")
 
     # ----------------------------
-    # 🚨 If High Risk → Block
+    # Risk Prediction (Instant)
+    # ----------------------------
+    risk = 0
+    if st.session_state.model_trained:
+        risk = st.session_state.model.predict([[amount]])[0]
+
+    # ----------------------------
+    # High Risk → Block
     # ----------------------------
     if risk == 1:
         st.error("⚠️ High Risk Transaction Detected!")
-        st.warning("QR Generation Blocked.")
+        st.warning("QR Generation Blocked for Security.")
         st.stop()
 
     # ----------------------------
-    # ✅ LOW RISK → SAVE TO DB
+    # Save to Database
     # ----------------------------
-    insert_transaction(username, amount)
-
-    st.success("Transaction Saved in Database ✅")
+    try:
+        insert_transaction(username, amount)
+        st.success("Transaction Saved in Database ✅")
+    except Exception as e:
+        st.error(f"Database Error: {e}")
+        st.stop()
 
     # ----------------------------
     # Generate UPI Link
@@ -107,14 +120,13 @@ if st.button("Generate Secure QR"):
             f"tn={note}"
         )
 
+    # ----------------------------
+    # Generate QR Code
+    # ----------------------------
     qr = qrcode.make(upi_link)
 
     buffer = BytesIO()
     qr.save(buffer, format="PNG")
 
     st.image(buffer.getvalue(), caption="Scan with Any UPI App")
-
     st.success("QR Generated Successfully 🚀")
-
-    # 🔁 FORCE REFRESH (VERY IMPORTANT)
-    st.rerun()
