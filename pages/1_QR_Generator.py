@@ -3,7 +3,7 @@ import numpy as np
 import qrcode
 from io import BytesIO
 from sklearn.linear_model import LogisticRegression
-from database import insert_transaction
+from database import insert_transaction, init_db  # ✅ Added init_db
 
 st.title("💳 AI Secure UPI QR Generator")
 
@@ -20,6 +20,10 @@ if not st.session_state.authenticated or st.session_state.username is None:
     st.warning("Please login first.")
     st.stop()
 
+# ✅ Initialize Database (VERY IMPORTANT)
+init_db()
+
+# ✅ Force lowercase username everywhere
 username = st.session_state.username.lower()
 
 # ----------------------------
@@ -53,7 +57,7 @@ payment_type = st.radio(
 if st.button("Generate Secure QR"):
 
     # ----------------------------
-    # AI Training After 5 Transactions
+    # Train Model After 5 Safe Transactions
     # ----------------------------
     if len(st.session_state.transactions) >= 5 and not st.session_state.model_trained:
 
@@ -63,17 +67,17 @@ if st.button("Generate Secure QR"):
         if len(np.unique(y)) > 1:
             st.session_state.model.fit(X, y)
             st.session_state.model_trained = True
-            st.success("AI Risk Model Activated ✅")
+            st.success("🧠 AI Risk Model Activated")
 
     # ----------------------------
-    # Risk Prediction BEFORE Saving
+    # Predict Risk BEFORE Saving
     # ----------------------------
     risk_flag = 0
     if st.session_state.model_trained:
         risk_flag = st.session_state.model.predict([[amount]])[0]
 
     # ----------------------------
-    # 🚨 BLOCK HIGH RISK TRANSACTION
+    # 🚨 Block High Risk Transaction
     # ----------------------------
     if risk_flag == 1:
         st.error("🚨 High Risk Transaction Detected!")
@@ -81,17 +85,17 @@ if st.button("Generate Secure QR"):
         st.stop()
 
     # ----------------------------
-    # Save Transaction (ONLY IF SAFE)
+    # Save to Database (Only if Safe)
     # ----------------------------
     try:
-        insert_transaction(username, amount)
+        insert_transaction(username, float(amount))
         st.success("Transaction Saved in Database ✅")
     except Exception as e:
         st.error(f"Database Error: {e}")
         st.stop()
 
-    # Save locally for ML learning
-    st.session_state.transactions.append({"amount": amount})
+    # Save locally for ML
+    st.session_state.transactions.append({"amount": float(amount)})
 
     # ----------------------------
     # Generate UPI Link
@@ -118,9 +122,8 @@ if st.button("Generate Secure QR"):
     # Generate QR Code
     # ----------------------------
     qr = qrcode.make(upi_link)
-
     buffer = BytesIO()
     qr.save(buffer, format="PNG")
 
     st.image(buffer.getvalue(), caption="Scan with Any UPI App")
-    st.success("Secure QR Generated Successfully 🚀")
+    st.success("🚀 Secure QR Generated Successfully")

@@ -1,9 +1,7 @@
 import streamlit as st
-import numpy as np
 from sklearn.linear_model import LogisticRegression
 from database import (
     init_db,
-    create_user_table,
     register_user_db,
     authenticate_user_db
 )
@@ -15,8 +13,7 @@ st.set_page_config(page_title="Artha AI", layout="wide")
 from styles.login_bg import load_login_background
 
 # ---------------- DATABASE INIT ----------------
-init_db()
-create_user_table()
+init_db()   # ✅ This now creates both users & transactions tables
 
 # ---------------- SESSION INIT ----------------
 if "authenticated" not in st.session_state:
@@ -25,28 +22,17 @@ if "authenticated" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = None
 
-if "transactions" not in st.session_state:
-    st.session_state.transactions = []
-
 if "last_risk" not in st.session_state:
     st.session_state.last_risk = None
 
-if "model" not in st.session_state:
-    st.session_state.model = LogisticRegression()
-
-if "model_trained" not in st.session_state:
-    st.session_state.model_trained = False
-
 if "page" not in st.session_state:
     st.session_state.page = "login"
-
 
 # ================= LOGIN PAGE =================
 if st.session_state.page == "login":
 
     st.markdown(load_login_background(), unsafe_allow_html=True)
 
-    # 🔥 Clean Brand Header
     st.markdown("""
     <style>
     .brand-box {
@@ -57,7 +43,6 @@ if st.session_state.page == "login":
         border-radius: 16px;
         text-align: center;
     }
-
     .brand-title {
         font-size: 36px;
         font-weight: 600;
@@ -65,7 +50,6 @@ if st.session_state.page == "login":
         color: #e6f1f2;
         font-family: 'Segoe UI', sans-serif;
     }
-
     .brand-title span {
         color: #00c2b8;
         font-weight: 700;
@@ -98,7 +82,7 @@ if st.session_state.page == "login":
             if st.button("Login"):
                 if authenticate_user_db(username, password):
                     st.session_state.authenticated = True
-                    st.session_state.username = username
+                    st.session_state.username = username.lower().strip()  # ✅ lowercase fix
                     st.session_state.page = "dashboard"
                     st.rerun()
                 else:
@@ -115,7 +99,6 @@ if st.session_state.page == "login":
                 else:
                     st.error("Username already exists.")
 
-
 # ================= DASHBOARD =================
 elif st.session_state.page == "dashboard":
 
@@ -124,17 +107,15 @@ elif st.session_state.page == "dashboard":
     st.sidebar.success(f"Logged in as {st.session_state.username}")
 
     if st.sidebar.button("Logout"):
-        st.session_state.authenticated = False
-        st.session_state.username = None
-        st.session_state.page = "login"
+        st.session_state.clear()   # ✅ clean logout
         st.rerun()
 
     st.divider()
 
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Total Transactions", len(st.session_state.transactions))
-    col2.metric("Model Trained", "Yes" if st.session_state.model_trained else "No")
+    col1.metric("User", st.session_state.username)
+    col2.metric("Authentication", "Active")
     col3.metric(
         "Last Risk Score",
         st.session_state.last_risk

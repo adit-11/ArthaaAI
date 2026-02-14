@@ -1,5 +1,6 @@
 import sqlite3
 import hashlib
+from datetime import datetime
 
 DB_NAME = "fintech.db"
 
@@ -8,29 +9,22 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    # Transactions table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            amount REAL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-# ---------------- USER TABLE ----------------
-def create_user_table():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-
+    # Users table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
             password TEXT
+        )
+    """)
+
+    # Transactions table (with timestamp)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            amount REAL,
+            timestamp TEXT
         )
     """)
 
@@ -45,6 +39,8 @@ def hash_password(password):
 
 # ---------------- REGISTER USER ----------------
 def register_user_db(username, password):
+    username = username.lower().strip()
+
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
@@ -55,7 +51,7 @@ def register_user_db(username, password):
         )
         conn.commit()
         return True
-    except:
+    except sqlite3.IntegrityError:
         return False
     finally:
         conn.close()
@@ -63,6 +59,8 @@ def register_user_db(username, password):
 
 # ---------------- AUTHENTICATE USER ----------------
 def authenticate_user_db(username, password):
+    username = username.lower().strip()
+
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
@@ -82,12 +80,14 @@ def authenticate_user_db(username, password):
 
 # ---------------- INSERT TRANSACTION ----------------
 def insert_transaction(username, amount):
+    username = username.lower().strip()
+
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
     cursor.execute(
-        "INSERT INTO transactions (username, amount) VALUES (?, ?)",
-        (username, amount)
+        "INSERT INTO transactions (username, amount, timestamp) VALUES (?, ?, ?)",
+        (username, float(amount), datetime.now().isoformat())
     )
 
     conn.commit()
@@ -96,11 +96,13 @@ def insert_transaction(username, amount):
 
 # ---------------- GET USER TRANSACTIONS ----------------
 def get_user_transactions(username):
+    username = username.lower().strip()
+
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT amount FROM transactions WHERE username = ?",
+        "SELECT amount FROM transactions WHERE username = ? ORDER BY id ASC",
         (username,)
     )
 
