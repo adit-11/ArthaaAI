@@ -3,43 +3,68 @@ import numpy as np
 from database import init_db, get_user_transactions
 from ml_model import train_user_model, predict_user_risk
 
-# 🔐 Protect page
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.warning("Please login first.")
+# ================= PAGE CONFIG =================
+st.set_page_config(page_title="Risk Intelligence", layout="wide")
+
+# ================= SESSION SAFETY =================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "username" not in st.session_state:
+    st.session_state.username = None
+
+if not st.session_state.authenticated or st.session_state.username is None:
+    st.warning("Session expired. Please login again.")
     st.stop()
 
+# ================= INIT DB =================
 init_db()
 
 st.title("🧠 AI Behavioral Risk Intelligence Engine")
 
 username = st.session_state.username
+
+# 🔁 Add Manual Refresh Button (IMPORTANT)
+if st.button("🔄 Refresh Data"):
+    st.rerun()
+
 user_history = get_user_transactions(username)
 
-if len(user_history) == 0:
+# ================= DEBUG (remove later) =================
+# st.write("User History:", user_history)
+
+# ================= EMPTY CASE =================
+if not user_history:
     st.info("No transactions found. Please generate a QR first.")
     st.stop()
 
 # ================= LEARNING PHASE =================
 if len(user_history) < 5:
     st.info(f"Learning phase: {len(user_history)}/5 transactions collected.")
-    st.progress(len(user_history) * 20)
+    st.progress(len(user_history) / 5)
     st.success("AI is building behavioral baseline.")
     st.stop()
 
 # ================= USE LAST TRANSACTION =================
-latest_amount = user_history[-1]
-historical_data = user_history[:-1]
+latest_amount = float(user_history[-1])
+historical_data = np.array(user_history[:-1], dtype=float)
 
 avg_amount = np.mean(historical_data)
 std_dev = np.std(historical_data)
+
 if std_dev == 0:
     std_dev = 1
 
 deviation_score = abs(latest_amount - avg_amount) / std_dev
 behavioral_risk = min(80, deviation_score * 20)
 
-# ================= ML MODEL =================
-model = train_user_model(historical_data)
+# ================= ML MODEL (Cached for Speed) =================
+@st.cache_resource
+def load_model(data):
+    return train_user_model(data)
+
+model = load_model(tuple(historical_data))
+
 prediction, anomaly_strength = predict_user_risk(model, latest_amount)
 
 ml_boost = 0
@@ -54,7 +79,7 @@ confidence = min(100, len(historical_data) * 10)
 st.subheader("📊 Risk Assessment Result")
 
 st.metric("Risk Score", f"{risk_percent}%")
-st.progress(risk_percent)
+st.progress(risk_percent / 100)
 st.metric("Model Confidence", f"{confidence}%")
 
 if risk_percent < 30:
