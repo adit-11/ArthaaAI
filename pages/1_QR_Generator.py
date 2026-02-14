@@ -52,45 +52,36 @@ payment_type = st.radio(
 # ----------------------------
 if st.button("Generate Secure QR"):
 
-    # Save locally for ML learning
-    st.session_state.transactions.append({"amount": amount})
-
     # ----------------------------
-    # Train model ONLY ONCE after 5 transactions
+    # AI Training After 5 Transactions
     # ----------------------------
-    if (
-        len(st.session_state.transactions) == 5
-        and not st.session_state.model_trained
-    ):
+    if len(st.session_state.transactions) >= 5 and not st.session_state.model_trained:
 
         X = np.array([[t["amount"]] for t in st.session_state.transactions])
-        y = np.array(
-            [1 if t["amount"] > 5000 else 0
-             for t in st.session_state.transactions]
-        )
+        y = np.array([1 if t["amount"] > 5000 else 0 for t in st.session_state.transactions])
 
         if len(np.unique(y)) > 1:
             st.session_state.model.fit(X, y)
             st.session_state.model_trained = True
-            st.success("AI Risk Model Trained ✅")
+            st.success("AI Risk Model Activated ✅")
 
     # ----------------------------
-    # Risk Prediction (Instant)
+    # Risk Prediction BEFORE Saving
     # ----------------------------
-    risk = 0
+    risk_flag = 0
     if st.session_state.model_trained:
-        risk = st.session_state.model.predict([[amount]])[0]
+        risk_flag = st.session_state.model.predict([[amount]])[0]
 
     # ----------------------------
-    # High Risk → Block
+    # 🚨 BLOCK HIGH RISK TRANSACTION
     # ----------------------------
-    if risk == 1:
-        st.error("⚠️ High Risk Transaction Detected!")
-        st.warning("QR Generation Blocked for Security.")
+    if risk_flag == 1:
+        st.error("🚨 High Risk Transaction Detected!")
+        st.warning("QR Generation Blocked for Security Reasons.")
         st.stop()
 
     # ----------------------------
-    # Save to Database
+    # Save Transaction (ONLY IF SAFE)
     # ----------------------------
     try:
         insert_transaction(username, amount)
@@ -98,6 +89,9 @@ if st.button("Generate Secure QR"):
     except Exception as e:
         st.error(f"Database Error: {e}")
         st.stop()
+
+    # Save locally for ML learning
+    st.session_state.transactions.append({"amount": amount})
 
     # ----------------------------
     # Generate UPI Link
@@ -129,4 +123,4 @@ if st.button("Generate Secure QR"):
     qr.save(buffer, format="PNG")
 
     st.image(buffer.getvalue(), caption="Scan with Any UPI App")
-    st.success("QR Generated Successfully 🚀")
+    st.success("Secure QR Generated Successfully 🚀")
